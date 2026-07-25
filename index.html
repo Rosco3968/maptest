@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WCESD#3 // Street Recognition Trainer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e13;
+    --panel:#11161d;
+    --panel-2:#151b23;
+    --line:#22303c;
+    --amber:#ffb703;
+    --amber-dim:#8a6a1f;
+    --red:#e5484d;
+    --green:#3ddc84;
+    --text:#e6edf3;
+    --dim:#6b7d8c;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Mono',monospace;
+    min-height:100vh;
+    position:relative;
+    overflow-x:hidden;
+  }
+  .scanlines{
+    pointer-events:none;
+    position:fixed;
+    inset:0;
+    z-index:50;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.018) 0px,
+      rgba(255,255,255,0.018) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode:overlay;
+  }
+  .cad-bar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 20px;
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#0d1218,#0a0e13);
+    font-size:13px;
+    letter-spacing:0.06em;
+  }
+  .cad-left{color:var(--amber);font-weight:600;}
+  .cad-left .dim{color:var(--dim);margin:0 6px;}
+  .cad-right{color:var(--dim);}
+  #clock{color:var(--text);}
+  .wrap{
+    max-width:920px;
+    margin:0 auto;
+    padding:28px 16px 60px;
+  }
+  .title-block{
+    text-align:center;
+    margin-bottom:26px;
+  }
+  .title-block h1{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(34px,6vw,52px);
+    letter-spacing:0.03em;
+    color:var(--text);
+    margin:0 0 4px;
+    line-height:1;
+  }
+  .title-block h1 span{color:var(--amber);}
+  .title-block p{
+    color:var(--dim);
+    font-size:12.5px;
+    letter-spacing:0.08em;
+    margin:0;
+    text-transform:uppercase;
+  }
+  .cursor{
+    display:inline-block;
+    width:9px;
+    height:1em;
+    background:var(--amber);
+    margin-left:6px;
+    vertical-align:middle;
+    animation:blink 1s steps(1) infinite;
+  }
+  @keyframes blink{50%{opacity:0;}}
+
+  .tabs{
+    display:flex;
+    gap:2px;
+    background:var(--line);
+    border:1px solid var(--line);
+    margin-bottom:16px;
+    border-radius:6px;
+    overflow:hidden;
+  }
+  .tab{
+    flex:1;
+    padding:11px 6px;
+    background:var(--panel);
+    color:var(--dim);
+    border:none;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    letter-spacing:0.08em;
+    cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .tab:hover{color:var(--text);}
+  .tab.active{background:var(--amber);color:#1a1206;font-weight:700;}
+  .tab:focus-visible{outline:2px solid var(--amber);outline-offset:-2px;}
+
+  .stage{
+    display:grid;
+    grid-template-columns:1fr 220px;
+    gap:14px;
+  }
+  @media (max-width:680px){
+    .stage{grid-template-columns:1fr;}
+    .log-panel{order:2;}
+  }
+
+  .quiz-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:28px 24px;
+    min-height:280px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    position:relative;
+  }
+  .mode-tag{
+    position:absolute;
+    top:14px;
+    left:16px;
+    font-size:10.5px;
+    color:var(--amber-dim);
+    letter-spacing:0.1em;
+  }
+  .q-number{
+    font-size:11px;
+    color:var(--dim);
+    letter-spacing:0.08em;
+    margin-bottom:14px;
+  }
+  .prompt{
+    font-family:'Bebas Neue',sans-serif;
+    font-size:clamp(24px,5vw,34px);
+    letter-spacing:0.02em;
+    color:var(--text);
+    margin:0 0 22px;
+    line-height:1.15;
+  }
+  .prompt .accent{color:var(--amber);}
+
+  .flash-actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    letter-spacing:0.04em;
+    padding:12px 18px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--text);
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .btn:hover{border-color:var(--amber-dim);}
+  .btn:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  .btn-know{border-color:var(--green);color:var(--green);}
+  .btn-know:hover{background:rgba(61,220,132,0.08);}
+  .btn-study{border-color:var(--red);color:var(--red);}
+  .btn-study:hover{background:rgba(229,72,77,0.08);}
+
+  .mc-options{display:grid;gap:10px;}
+  .mc-opt{
+    text-align:left;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14.5px;
+    padding:13px 16px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--text);
+    cursor:pointer;
+    transition:border-color .15s, background .15s, transform .1s;
+  }
+  .mc-opt:hover{border-color:var(--amber-dim);}
+  .mc-opt:focus-visible{outline:2px solid var(--amber);outline-offset:2px;}
+  .mc-opt.correct{border-color:var(--green);background:rgba(61,220,132,0.1);color:var(--green);}
+  .mc-opt.wrong{border-color:var(--red);background:rgba(229,72,77,0.1);color:var(--red);}
+  .mc-opt[disabled]{cursor:default;}
+
+  .type-row{display:flex;gap:10px;flex-wrap:wrap;}
+  .type-input{
+    flex:1;
+    min-width:200px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:15px;
+    padding:12px 14px;
+    border-radius:6px;
+    border:1px solid var(--line);
+    background:var(--panel-2);
+    color:var(--text);
+  }
+  .type-input:focus{outline:2px solid var(--amber);border-color:var(--amber);}
+  .feedback{margin-top:14px;font-size:13px;letter-spacing:0.03em;min-height:20px;}
+  .feedback.ok{color:var(--green);}
+  .feedback.bad{color:var(--red);}
+  .feedback.hint{color:var(--dim);}
+
+  .next-row{margin-top:18px;}
+  .btn-next{border-color:var(--amber);color:var(--amber);}
+  .btn-next:hover{background:rgba(255,183,3,0.08);}
+
+  .log-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px;
+    font-size:11.5px;
+    max-height:340px;
+    overflow-y:auto;
+  }
+  .log-title{
+    color:var(--amber-dim);
+    letter-spacing:0.1em;
+    font-size:10.5px;
+    margin-bottom:10px;
+  }
+  #logList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;}
+  #logList li{
+    border-left:2px solid var(--line);
+    padding-left:8px;
+    color:var(--dim);
+    line-height:1.4;
+  }
+  #logList li.ok{border-color:var(--green);}
+  #logList li.bad{border-color:var(--red);}
+  #logList li .code{font-weight:700;}
+  #logList li.ok .code{color:var(--green);}
+  #logList li.bad .code{color:var(--red);}
+
+  .stats-bar{
+    margin-top:16px;
+    display:flex;
+    align-items:center;
+    gap:22px;
+    flex-wrap:wrap;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 20px;
+  }
+  .stat{display:flex;flex-direction:column;gap:2px;}
+  .stat-num{font-family:'Bebas Neue',sans-serif;font-size:24px;color:var(--amber);letter-spacing:0.02em;}
+  .stat-label{font-size:9.5px;color:var(--dim);letter-spacing:0.1em;}
+  .reset-btn{
+    margin-left:auto;
+    background:transparent;
+    border:1px solid var(--line);
+    color:var(--dim);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    padding:9px 14px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .reset-btn:hover{border-color:var(--red);color:var(--red);}
+</style>
+</head>
+<body>
+  <div class="scanlines"></div>
+
+  <div class="cad-bar">
+    <div class="cad-left">WCESD#3<span class="dim">//</span>HUTTO FIRE RESCUE</div>
+    <div class="cad-right">UNIT: TRAINEE-1 &nbsp; <span id="clock"></span></div>
+  </div>
+
+  <main class="wrap">
+    <div class="title-block">
+      <h1>STREET RECOGNITION<span> TRAINER</span><span class="cursor"></span></h1>
+      <p>120 response-area streets &middot; drill until they're second nature</p>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-mode="mixed">MIXED</button>
+      <button class="tab" data-mode="flash">FLASHCARDS</button>
+      <button class="tab" data-mode="mc">MULTIPLE CHOICE</button>
+      <button class="tab" data-mode="type">TYPE IT</button>
+    </div>
+
+    <div class="stage">
+      <div class="quiz-panel" id="quizPanel"></div>
+
+      <aside class="log-panel">
+        <div class="log-title">INCIDENT LOG</div>
+        <ul id="logList"></ul>
+      </aside>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat"><span class="stat-num" id="statMastered">0</span><span class="stat-label">MASTERED / 120</span></div>
+      <div class="stat"><span class="stat-num" id="statStreak">0</span><span class="stat-label">STREAK</span></div>
+      <div class="stat"><span class="stat-num" id="statAcc">0%</span><span class="stat-label">ACCURACY</span></div>
+      <button class="reset-btn" id="resetBtn">RESET PROGRESS</button>
+    </div>
+  </main>
+
+<script>
+const STREETS = [
+  "Skylark Ln","CR 118","Little Lake","Big Sandy Creek Dr","Carl Stern","Foxglove Dr",
+  "Swenson Drive","CR 101","Finstown St","Sofia Pl","Knowles Dr","Autumn Leaf Road",
+  "Rinehardt Street","Redfish Ln","Meadowside Drive","Chandler Road","Will Smith Circle",
+  "Enclave Way","Gainer Dr","Luna Vista Dr","CR 199","McCoy Lane","Paddington Way",
+  "Altamont","Whitefield St","Estate Drive","Jim Cage Ln","CR 130","Klattenhoff Lane",
+  "Hendelson Lane","Tradesman Park Drive","Spring Garden Drive","Corsica Loop","CR 394",
+  "Swindoll Ln","Finley Street","Duroc Drive","Holland Street","Lismore Street",
+  "Emory Fields Drive","Alliance Blvd","Paola St","Bethpage","CR 108","Anderson Street",
+  "CR 197","Comal Run","Lookout Circle","Liard River Road","West Doucet","Waterway Avenue",
+  "Creek Bend Drive","CR 119","Grisham Street","New Technology Blvd","Green Pasture Drive",
+  "Durango Downs Dr","Little Elm Way","Destiny Ln","Jacobs Well Dr","Ed Schmidt Blvd",
+  "Chris Kelley Blvd","CR 134","Winterfield Drive","Marvin Cove","Methodius Drive",
+  "Haybarn","CR 160","Schneider Blvd","Live Oak Street","CR 100","South Pauley",
+  "Emory Crossing Blvd","Fistral Drive","Simmental Loop","Orchard Way",
+  "Bridges at Cross Creek Blvd","Bassano Drive","West Street","Limmer Loop",
+  "Janis Mae Drive","Paige Bend","CR 198","Mager Ln","Creston Street","Hereford Loop",
+  "Main Street","Stewart Drive","Dana Drive","CR 131","Purple Sage","US 79","Clarks Way",
+  "Tall Oak Drive","Cassandra Drive","CR 132","Adrianna","Taylor Street","Rock Daisy Trl",
+  "San Antonio Riverwalk","Flora Blvd","Hyltin Street","Rowe Lane","Martin Lane",
+  "Wiltshire Drive","Cottonwood Drive","Axis Deer","Apache Pass","Brooklands Blvd",
+  "Cyril Drive","Reagan Wells","Mossy Rock Dr","Thomas Park Drive","Rio Grande",
+  "Danish Drive","Hibiscus Dr","Carol Drive","North Ash Cove","Decker Drive",
+  "Nueces River Trail"
+];
+
+const SUFFIXES = ["Ln","Dr","St","Rd","Way","Loop","Cv","Cove","Blvd","Ave","Trl","Pl","Circle","Drive","Street","Lane","Road","Bend","Run","Pass"];
+const ROAD_PREFIXES = ["CR","SH","US","FM"];
+
+const REAL_SET = new Set(STREETS.map(s=>s.toLowerCase()));
+
+function randInt(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
+function pick(arr){return arr[randInt(0,arr.length-1)];}
+
+function isNumberedRoad(s){return /^(CR|SH|US|FM)\s*\d+$/i.test(s.trim());}
+
+function makeDecoy(usedDecoys){
+  let attempt, tries=0;
+  do{
+    tries++;
+    if(tries>40){
+      attempt = pick(STREETS)+" "+randInt(2,9);
+      break;
+    }
+    const base = pick(STREETS);
+    if(isNumberedRoad(base)){
+      const prefix = base.split(" ")[0];
+      const num = randInt(100,430);
+      attempt = prefix+" "+num;
+    } else {
+      const words = base.split(" ");
+      if(words.length>1){
+        const newSuffix = pick(SUFFIXES);
+        attempt = words.slice(0,-1).join(" ")+" "+newSuffix;
+      } else {
+        const otherBase = pick(STREETS).split(" ")[0];
+        attempt = otherBase+" "+pick(SUFFIXES);
+      }
+    }
+  } while(REAL_SET.has(attempt.toLowerCase()) || usedDecoys.has(attempt.toLowerCase()));
+  usedDecoys.add(attempt.toLowerCase());
+  return attempt;
+}
+
+function maskStreet(s){
+  return s.split(" ").map(word=>{
+    return word.replace(/[A-Za-z]/g, (ch,i)=> i===0 ? ch : "_");
+  }).join(" ");
+}
+
+function normalize(s){
+  return s.toLowerCase().replace(/\./g,"").replace(/\s+/g," ").trim();
+}
+
+// ---- state ----
+let mastered = new Set(JSON.parse(localStorage.getItem("hfr_mastered")||"[]"));
+let stats = JSON.parse(localStorage.getItem("hfr_stats")||'{"correct":0,"total":0,"streak":0,"bestStreak":0}');
+let mode = "mixed";
+let current = null; // {type, street, ...}
+
+const quizPanel = document.getElementById("quizPanel");
+const logList = document.getElementById("logList");
+
+function saveProgress(){
+  localStorage.setItem("hfr_mastered", JSON.stringify([...mastered]));
+  localStorage.setItem("hfr_stats", JSON.stringify(stats));
+  renderStats();
+}
+
+function renderStats(){
+  document.getElementById("statMastered").textContent = mastered.size;
+  document.getElementById("statStreak").textContent = stats.streak;
+  const acc = stats.total ? Math.round((stats.correct/stats.total)*100) : 0;
+  document.getElementById("statAcc").textContent = acc+"%";
+}
+
+function logEntry(ok, text){
+  const li = document.createElement("li");
+  li.className = ok ? "ok" : "bad";
+  li.innerHTML = `<span class="code">${ok ? "10-4" : "RETRY"}</span> ${text}`;
+  logList.prepend(li);
+  while(logList.children.length > 8){ logList.removeChild(logList.lastChild); }
+}
+
+function recordResult(ok){
+  stats.total++;
+  if(ok){
+    stats.correct++;
+    stats.streak++;
+    stats.bestStreak = Math.max(stats.bestStreak, stats.streak);
+  } else {
+    stats.streak = 0;
+  }
+  saveProgress();
+}
+
+function pickStreetWeighted(){
+  // favor streets not yet mastered, but keep everything in rotation
+  const unmastered = STREETS.filter(s=>!mastered.has(s));
+  const pool = unmastered.length ? unmastered : STREETS;
+  return pick(pool);
+}
+
+function activeModeFor(){
+  if(mode !== "mixed") return mode;
+  return pick(["flash","mc","type"]);
+}
+
+function nextQuestion(){
+  const type = activeModeFor();
+  if(type === "flash") renderFlash();
+  else if(type === "mc") renderMC();
+  else renderType();
+}
+
+function modeTag(label){
+  return `<div class="mode-tag">${label}</div>`;
+}
+
+function renderFlash(){
+  const street = pickStreetWeighted();
+  current = {type:"flash", street};
+  quizPanel.innerHTML = `
+    ${modeTag("FLASHCARD")}
+    <div class="q-number">DO YOU KNOW THIS STREET?</div>
+    <div class="prompt">${street}</div>
+    <div class="flash-actions">
+      <button class="btn btn-know" id="knowBtn">I know it</button>
+      <button class="btn btn-study" id="studyBtn">Still learning</button>
+    </div>
+  `;
+  document.getElementById("knowBtn").onclick = ()=>{
+    mastered.add(street);
+    recordResult(true);
+    logEntry(true, street);
+    nextQuestion();
+  };
+  document.getElementById("studyBtn").onclick = ()=>{
+    mastered.delete(street);
+    recordResult(false);
+    logEntry(false, street);
+    nextQuestion();
+  };
+}
+
+function renderMC(){
+  const street = pickStreetWeighted();
+  const usedDecoys = new Set();
+  const decoys = [makeDecoy(usedDecoys), makeDecoy(usedDecoys), makeDecoy(usedDecoys)];
+  const options = [street, ...decoys].sort(()=>Math.random()-0.5);
+  current = {type:"mc", street};
+  quizPanel.innerHTML = `
+    ${modeTag("MULTIPLE CHOICE")}
+    <div class="q-number">WHICH OF THESE IS AN ACTUAL STREET IN YOUR AREA?</div>
+    <div class="mc-options" id="mcOptions">
+      ${options.map((o,i)=>`<button class="mc-opt" data-val="${o.replace(/"/g,'&quot;')}">${o}</button>`).join("")}
+    </div>
+    <div class="feedback" id="mcFeedback"></div>
+    <div class="next-row" id="mcNextRow" style="display:none;">
+      <button class="btn btn-next" id="mcNext">Next &rarr;</button>
+    </div>
+  `;
+  const buttons = quizPanel.querySelectorAll(".mc-opt");
+  buttons.forEach(btn=>{
+    btn.onclick = ()=>{
+      buttons.forEach(b=>b.disabled=true);
+      const val = btn.getAttribute("data-val");
+      const ok = val === street;
+      btn.classList.add(ok ? "correct" : "wrong");
+      if(!ok){
+        buttons.forEach(b=>{ if(b.getAttribute("data-val")===street) b.classList.add("correct"); });
+      }
+      const fb = document.getElementById("mcFeedback");
+      fb.textContent = ok ? "Correct." : `That one's not real — the actual street is "${street}".`;
+      fb.className = "feedback " + (ok ? "ok" : "bad");
+      if(ok) mastered.add(street);
+      recordResult(ok);
+      logEntry(ok, street);
+      document.getElementById("mcNextRow").style.display = "block";
+      document.getElementById("mcNext").onclick = nextQuestion;
+    };
+  });
+}
+
+function renderType(){
+  let street = pickStreetWeighted();
+  let tries=0;
+  while(isNumberedRoad(street) && tries<20){ street = pickStreetWeighted(); tries++; }
+  current = {type:"type", street};
+  quizPanel.innerHTML = `
+    ${modeTag("TYPE IT")}
+    <div class="q-number">TYPE THE FULL STREET NAME</div>
+    <div class="prompt">${maskStreet(street)}</div>
+    <div class="type-row">
+      <input class="type-input" id="typeInput" autocomplete="off" placeholder="Start typing...">
+      <button class="btn" id="typeSubmit">Submit</button>
+    </div>
+    <div class="feedback" id="typeFeedback"></div>
+    <div class="next-row" id="typeNextRow" style="display:none;">
+      <button class="btn btn-next" id="typeNext">Next &rarr;</button>
+    </div>
+  `;
+  const input = document.getElementById("typeInput");
+  input.focus();
+  function submit(){
+    const val = input.value.trim();
+    if(!val) return;
+    const ok = normalize(val) === normalize(street);
+    const fb = document.getElementById("typeFeedback");
+    input.disabled = true;
+    document.getElementById("typeSubmit").disabled = true;
+    fb.textContent = ok ? "Correct." : `Not quite — it's "${street}".`;
+    fb.className = "feedback " + (ok ? "ok" : "bad");
+    if(ok) mastered.add(street);
+    recordResult(ok);
+    logEntry(ok, street);
+    document.getElementById("typeNextRow").style.display = "block";
+    document.getElementById("typeNext").onclick = nextQuestion;
+  }
+  document.getElementById("typeSubmit").onclick = submit;
+  input.addEventListener("keydown", e=>{ if(e.key==="Enter") submit(); });
+}
+
+document.querySelectorAll(".tab").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    tab.classList.add("active");
+    mode = tab.getAttribute("data-mode");
+    nextQuestion();
+  });
+});
+
+document.getElementById("resetBtn").addEventListener("click", ()=>{
+  if(confirm("Reset all progress? This clears mastered streets and stats.")){
+    mastered = new Set();
+    stats = {correct:0,total:0,streak:0,bestStreak:0};
+    saveProgress();
+    nextQuestion();
+  }
+});
+
+function tickClock(){
+  const d = new Date();
+  document.getElementById("clock").textContent = d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+renderStats();
+nextQuestion();
+</script>
+</body>
+</html>
